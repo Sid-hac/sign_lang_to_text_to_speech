@@ -3,7 +3,7 @@ keras
 numpy
 opencv-python
 mediapipe
-cvzone==1.5.5
+cvzone==1.6.1
 gtts
 playsound
 matplotlib
