@@ -1,0 +1,10 @@
+tensorflow
+keras
+numpy
+opencv-python
+mediapipe
+cvzone
+gtts
+playsound
+matplotlib
+scikit-learn
