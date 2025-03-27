@@ -1,15 +1,17 @@
 import streamlit as st
+import yaml
+import hashlib
+import os
 import cv2
 from cvzone.HandTrackingModule import HandDetector
 import numpy as np
 import tensorflow as tf
 import gtts
-import os
 import threading
 import playsound
+import tempfile
 import time
 from PIL import Image
-import tempfile
 
 # Set page config
 st.set_page_config(
@@ -18,8 +20,92 @@ st.set_page_config(
     layout="wide"
 )
 
-# Add title and description
+# --- 🔹 User Authentication Functions ---
+USER_FILE = "users.yaml"
+
+def load_users():
+    """Load user credentials from a YAML file."""
+    if os.path.exists(USER_FILE):
+        with open(USER_FILE, "r") as file:
+            return yaml.safe_load(file)
+    return {}
+
+def save_users(users):
+    """Save user credentials to a YAML file."""
+    with open(USER_FILE, "w") as file:
+        yaml.dump(users, file)
+
+def hash_password(password):
+    """Hash the password using SHA-256."""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def login():
+    """Login page"""
+    st.title("🔐 Login to Access Hand Gesture App")
+
+    username = st.text_input("👤 Username")
+    password = st.text_input("🔑 Password", type="password")
+    login_btn = st.button("Login")
+
+    users = load_users()
+    
+    if login_btn:
+        if username in users and users[username] == hash_password(password):
+            st.session_state["logged_in"] = True
+            st.session_state["username"] = username
+            st.success(f"✅ Logged in as {username}")
+            st.rerun()
+
+        else:
+            st.error("❌ Invalid username or password")
+
+def register():
+    """Registration page"""
+    st.title("📝 Register a New Account")
+
+    new_username = st.text_input("👤 Choose a Username")
+    new_password = st.text_input("🔑 Choose a Password", type="password")
+    register_btn = st.button("Register")
+
+    users = load_users()
+
+    if register_btn:
+        if new_username in users:
+            st.error("❌ Username already exists! Choose another.")
+        elif len(new_password) < 6:
+            st.error("❌ Password must be at least 6 characters long.")
+        else:
+            users[new_username] = hash_password(new_password)
+            save_users(users)
+            st.success("✅ Registration successful! Please log in.")
+            st.balloons()
+
+# --- 🔹 Handle Authentication ---
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+
+if not st.session_state["logged_in"]:
+    option = st.sidebar.radio("🔑 Choose an Option", ["Login", "Register"])
+    
+    if option == "Login":
+        login()
+    else:
+        register()
+
+    st.stop()  # Prevent the main app from loading until logged in
+
+# --- 🔹 Logout Function ---
+if st.sidebar.button("🚪 Logout"):
+    st.session_state["logged_in"] = False
+    st.session_state["username"] = None
+    st.rerun()
+
+
+st.sidebar.success(f"✅ Logged in as {st.session_state['username']}")
+
+# --- 🎥 Gesture Recognition Code (Your Original Code) ---
 st.title("Hand Gesture Recognition & Speech")
+
 st.markdown("""
     This application detects hand gestures to recognize American Sign Language (ASL) alphabets and speaks them out loud.
     Position your hand in front of the camera to see it in action!
@@ -31,22 +117,14 @@ with st.sidebar:
     detection_confidence = st.slider("Detection Confidence", 0.5, 1.0, 0.8, 0.05)
     buffer_size = st.slider("Prediction Stability (frames)", 1, 10, 3, 1)
     speech_enabled = st.checkbox("Enable Speech", value=True)
-    
-    st.header("Instructions")
-    st.markdown("""
-    1. Allow camera access when prompted
-    2. Show your hand gesture in the camera
-    3. Hold steady for best results
-    4. The app will recognize and speak the letter
-    5. Press Stop to end the session
-    """)
-    
+
     # Display the ASL alphabet reference
     st.header("ASL Alphabet Reference")
-    st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/ASLdigits.jpg/600px-ASLdigits.jpg", 
+    st.image(os.path.join(os.getcwd(), "reference.jpg"), 
              caption="ASL Alphabet Reference")
 
 # Function to convert text to speech without blocking
+
 @st.cache_resource
 def get_speech_engine():
     def speak_text(text):
@@ -283,7 +361,7 @@ def process_camera():
 if stop_button:
     st.session_state.running = False
     st.success("Camera stopped")
-    st.experimental_rerun()
+    st.rerun()
 
 # Run camera processing if in running state
 if st.session_state.running:
